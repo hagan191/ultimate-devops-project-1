@@ -8,10 +8,21 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-    - host: example.com
+    - host: devopsbybhaskar.shop
       http:
         paths:
-          - path: "/"
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opentelemetry-demo-frontendproxy
+                port:
+                  number: 8080
+
+    - host: www.devopsbybhaskar.shop
+      http:
+        paths:
+          - path: /
             pathType: Prefix
             backend:
               service:
