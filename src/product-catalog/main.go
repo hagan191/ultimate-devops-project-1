@@ -138,7 +138,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+  
 	svc := &productCatalog{}
 	var port string
 	mustMapEnv(&port, "PRODUCT_CATALOG_PORT")
