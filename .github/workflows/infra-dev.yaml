@@ -1,0 +1,37 @@
+name: "Infrastructure Deployment"
+on:
+  push:
+    branches: [ dev ]
+    paths: [ terraform/** ]
+
+jobs:
+  terraform-dev:
+    name: "Infrastructure Deployment to Dev Environment"
+    runs-on: ubuntu-latest
+
+    defaults:
+        run:
+          working-directory: terraform/environments/dev
+    steps:
+        - name: "Checkout code"
+          uses: actions/checkout@v4
+
+        - name: "Configure AWS Credentials"
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            role-to-assume: ${{ secrets.AWS_ADMIN_ROLE_ARN }}
+            aws-region: us-west-2
+
+        - name: "Setup Terraform"
+          uses: hashicorp/setup-terraform@v3
+
+        - name: "Terraform Init"
+          run: terraform init
+
+        - name: "Terraform Plan"
+          run: terraform plan
+
+        - name: "Terraform Apply"
+          run: terraform apply -auto-approve
+
+        
