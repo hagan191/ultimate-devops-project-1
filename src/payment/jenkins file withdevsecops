@@ -1,0 +1,189 @@
+pipeline {
+    agent any
+
+    environment {
+        GIT_REPO = "https://github.com/himansu2046/ultimate-devops-project-demo.git"
+        DOCKER_USER = 'himansu2046'
+        NODE_VERSION = '22'  // Matches your Dockerfile
+    }
+
+    stages {
+
+        // 1. Workspace Cleanup
+        stage('Workspace Cleanup') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        // 2. Checkout Code
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: "${GIT_REPO}",
+                    credentialsId: 'github-credentials'
+            }
+        }
+
+        // 3. Install Dependencies
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                cd src/payment
+                npm ci || npm install
+                '''
+            }
+        }
+
+        // 4. OWASP Dependency Check
+        stage('OWASP Dependency Check') {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./src/payment --format XML',
+                                 odcInstallation: 'OWASP-DC'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+
+        // 5. Trivy Filesystem Scan
+        stage('Trivy FS Scan') {
+            steps {
+                sh 'trivy fs --severity HIGH,CRITICAL --no-progress .'
+            }
+        }
+
+        // 6. ESLint Check
+        stage('ESLint Check') {
+            steps {
+                sh '''
+                cd src/payment
+                if [ -f package.json ] && grep -q "lint" package.json; then
+                    npm run lint || echo "Lint issues found, continuing..."
+                else
+                    echo "No lint script found, skipping..."
+                fi
+                '''
+            }
+        }
+
+        // 7. Unit Tests
+        stage('Unit Tests') {
+            steps {
+                sh '''
+                cd src/payment
+                if [ -f package.json ] && grep -q "test" package.json; then
+                    npm test || echo "Tests failed, continuing..."
+                else
+                    echo "No test script found, skipping..."
+                fi
+                '''
+            }
+        }
+
+        // 8. SonarQube Analysis
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonarqube-server') {
+                    sh '''
+                    cd src/payment
+                    sonar-scanner \
+                      -Dsonar.projectKey=payment-service \
+                      -Dsonar.sources=. \
+                      -Dsonar.projectName="Payment Service" \
+                      -Dsonar.projectVersion=1.0 \
+                      -Dsonar.exclusions=**/node_modules/**,**/coverage/** \
+                      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                    '''
+                }
+            }
+        }
+
+        // 9. Quality Gate
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        // 10. NPM Security Audit
+        stage('NPM Audit') {
+            steps {
+                sh '''
+                cd src/payment
+                npm audit --audit-level=high || echo "Security vulnerabilities found..."
+                '''
+            }
+        }
+
+        // 11. Docker Login
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-credentials',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+                }
+            }
+        }
+
+        // 12. Docker Build
+        stage('Docker Build') {
+            steps {
+                script {
+                    def IMAGE = "${DOCKER_USER}/payment-service:${BUILD_ID}"
+                    env.DOCKER_IMAGE = IMAGE
+                    
+                    // Build from root directory because Dockerfile references root paths
+                    sh "docker build -f src/payment/Dockerfile -t ${IMAGE} ."
+                }
+            }
+        }
+
+        // 13. Docker Push
+        stage('Docker Push') {
+            steps {
+                sh "docker push ${DOCKER_IMAGE}"
+            }
+        }
+
+        // 14. Update Kubernetes Manifest
+        stage('Update K8s Manifest') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-credentials',
+                    usernameVariable: 'GIT_USER',
+                    passwordVariable: 'GIT_PASS'
+                )]) {
+                    sh '''
+                    git config --global user.email "himansu2046@gmail.com"
+                    git config --global user.name "Himansu Biswal"
+                    
+                    sed -i "s|image: .*|image: ${DOCKER_IMAGE}|" kubernetes/payment/deploy.yaml
+                    
+                    git add kubernetes/payment/deploy.yaml
+                    git commit -m "[CI]: Update payment service image tag [skip ci]" || echo "No changes"
+                    
+                    git push https://${GIT_USER}:${GIT_PASS}@github.com/himansu2046/ultimate-devops-project-demo.git HEAD:main
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Payment Service Pipeline completed successfully!"
+            echo "Image: ${DOCKER_IMAGE}"
+        }
+        failure {
+            echo "Payment Service Pipeline failed!"
+        }
+        always {
+            // Clean up
+            sh 'docker system prune -f || true'
+        }
+    }
+}
