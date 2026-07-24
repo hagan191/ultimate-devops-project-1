@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+
+metadata:
+  name: frontend
+  title: Frontend
+  description: Web frontend for the OpenTelemetry Astronomy Shop.
+
+  annotations:
+    github.com/project-slug: liyakath07/ultimate-devops-project-demo
+
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: astronomy-shop
+
+  dependsOn:
+    - component:default/product-catalog
+    - component:default/recommendation
+
+  consumesApis:
+  - product-catalog-api
