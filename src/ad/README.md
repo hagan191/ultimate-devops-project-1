@@ -43,3 +43,6 @@ From the root of `opentelemetry-demo`, run:
 ```sh
 docker build --file ./src/ad/Dockerfile ./
 ```
+## CI Pipeline Test
+
+This line is added to verify the GitHub Actions CI pipeline.
