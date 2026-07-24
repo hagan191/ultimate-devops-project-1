@@ -326,3 +326,4 @@ public final class AdService {
     service.blockUntilShutdown();
   }
 }
+// CI pipeline test - no functional changes
