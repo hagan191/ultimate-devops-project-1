@@ -310,8 +310,9 @@ func (p *productCatalog) checkProductFailure(ctx context.Context, id string) boo
 }
 
 func createClient(ctx context.Context, svcAddr string) (*grpc.ClientConn, error) {
-	return grpc.NewClient(svcAddr, ...)
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	return grpc.NewClient(
+		svcAddr, 
+		grpc.WithTransportCredentials(insecure.NewCredentials()), 
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 }
