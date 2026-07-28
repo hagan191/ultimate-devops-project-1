@@ -16,6 +16,10 @@ jobs:
         steps:
         - name: checkout code
           uses: actions/checkout@v4
+          with:
+            # Force the checkout utility to use your newly declared write privileges
+            token: ${{ secrets.GITHUB_TOKEN }}
+            persist-credentials: true
 
         - name: Setup Go 1.22
           uses: actions/setup-go@v2
